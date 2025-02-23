@@ -3,17 +3,24 @@ from datetime import datetime, timedelta
 import re
 from typing import Dict
 
-def get_previous_month_date_range():
-    """Returns the first and last date of the previous month as strings in MM/DD/YYYY format."""
-    # Get current date
+def get_previous_month():
+    """Returns the previous month as a string in YYYY-MM format."""
     today = datetime.today()
-
-    # Compute the last day of the previous month by subtracting one day from the first day of this month
     last_day_last_month = today.replace(day=1) - timedelta(days=1)
-    
-    # Compute the first day of the previous month
-    first_day_last_month = last_day_last_month.replace(day=1)
+    return last_day_last_month.strftime("%Y-%m")
 
+def get_last_days_of_previous_two_months():
+    """Returns the last day of the month before previous month and the last day of the previous month in MM/DD/YYYY format."""
+    today = datetime.today()
+    last_day_prev_month = today.replace(day=1) - timedelta(days=1)
+    last_day_month_before_prev = last_day_prev_month.replace(day=1) - timedelta(days=1)
+    return pd.to_datetime(last_day_month_before_prev.strftime("%m/%d/%Y")), pd.to_datetime(last_day_prev_month.strftime("%m/%d/%Y")) 
+
+def get_previous_month_date_range():
+    """Returns the first and last date of the previous month in MM/DD/YYYY format."""
+    today = datetime.today()
+    last_day_last_month = today.replace(day=1) - timedelta(days=1)
+    first_day_last_month = last_day_last_month.replace(day=1)
     return pd.to_datetime(first_day_last_month.strftime("%m/%d/%Y")), pd.to_datetime(last_day_last_month.strftime("%m/%d/%Y"))
 
 ## Transformations ------------------------------------------------------------------------------------------
@@ -33,7 +40,7 @@ def filter_transaction_date(df: pd.DataFrame):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pd.DataFrame.")
     df["Transaction Date"] = pd.to_datetime(df["Transaction Date"], format="%m/%d/%Y")
-    start_date, end_date = get_previous_month_date_range()
+    start_date, end_date = get_last_days_of_previous_two_months()
     return df[(df["Transaction Date"] >= start_date) & (df["Transaction Date"] <= end_date)].astype(str)
 
 def clean_merchant(text: str):
