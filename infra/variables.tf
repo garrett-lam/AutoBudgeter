@@ -13,9 +13,3 @@ variable "rds_password" {
   type        = string
   sensitive   = true
 }
-
-variable "openai_api_key" {
-  description = "OpenAI API Key"
-  type        = string
-  sensitive   = true
-}

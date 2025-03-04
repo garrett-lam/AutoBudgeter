@@ -138,7 +138,6 @@ resource "aws_secretsmanager_secret" "airflow_secrets" {
 resource "aws_secretsmanager_secret_version" "airflow_secrets_values" {
   secret_id = aws_secretsmanager_secret.airflow_secrets.id
   secret_string = jsonencode({
-    "OPENAI_API_KEY" = var.openai_api_key,
     "RDS_PASSWORD"   = var.rds_password
   })
 }
@@ -212,19 +211,20 @@ resource "aws_security_group" "rds_sg" {
 # --- RDS Database ---
 # ----------------------------------------------------------------------------------------------
 resource "aws_db_instance" "transactions_db" {
-  identifier             = "transactions-db"
+  db_name                = "transactionDB"
   instance_class         = "db.t3.micro"
   allocated_storage      = 20 # 20 GB 
-  engine                 = "postgres"
+  engine                 = "mysql"
+  engine_version         = "8.0"                 # Specify the desired MySQL version
   username               = var.rds_username
   password               = var.rds_password
   publicly_accessible    = false
   skip_final_snapshot    = true
   vpc_security_group_ids = [aws_security_group.rds_sg.id] # Attach Security Group
 
-#   lifecycle {
-#     prevent_destroy = true
-#   }
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
 }
 
 # ----------------------------------------------------------------------------------------------

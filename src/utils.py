@@ -1,7 +1,10 @@
 import pandas as pd
 from datetime import datetime, timedelta
 import re
+import logging
 from typing import Dict
+
+logger = logging.getLogger(__name__)  
 
 def get_previous_month():
     """Returns the previous month as a string in YYYY-MM format."""
@@ -23,7 +26,9 @@ def get_previous_month_date_range():
     first_day_last_month = last_day_last_month.replace(day=1)
     return pd.to_datetime(first_day_last_month.strftime("%m/%d/%Y")), pd.to_datetime(last_day_last_month.strftime("%m/%d/%Y"))
 
-## Transformations ------------------------------------------------------------------------------------------
+############################################################################################################
+## Transformations 
+############################################################################################################
 def normalize_column_names(df: pd.DataFrame, column_mapping: Dict[str, str]):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pd.DataFrame.")
@@ -39,8 +44,10 @@ def normalize_categories(df: pd.DataFrame, category_mapping: Dict[str, str]):
 def filter_transaction_date(df: pd.DataFrame):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pd.DataFrame.")
+    df = df.copy()
     df["Transaction Date"] = pd.to_datetime(df["Transaction Date"], format="%m/%d/%Y")
-    start_date, end_date = get_last_days_of_previous_two_months()
+
+    start_date, end_date = get_previous_month_date_range()
     return df[(df["Transaction Date"] >= start_date) & (df["Transaction Date"] <= end_date)].astype(str)
 
 def clean_merchant(text: str):
@@ -51,7 +58,7 @@ def clean_merchant(text: str):
     # Remove leading/trailing spaces
     text = text.strip().lower()  
     # Remove unwanted payment processor prefixes
-    text = re.sub(r'^(tst\s*\*|sq\s*\*|\*)\s*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'^(tst\s*\*|sq\s*\*|\*|bps\s*\*)\s*', '', text, flags=re.IGNORECASE)
     # Remove trailing numbers and special characters ONLY at the end
     text = re.sub(r'[\s#\d]+$', '', text)
     # Replace multiple spaces with a single space
@@ -76,5 +83,4 @@ def format_amount(df: pd.DataFrame):
 
 def filter_columns(df: pd.DataFrame, column_mapping: Dict[str, str]):
     """Keeps only columns that are in the provided column mapping values."""
-    return df[list(column_mapping.values())]  
-
+    return df[list(column_mapping.values())]

@@ -28,19 +28,18 @@ output "airflow_web_ui" {
 # --- RDS Database Outputs ---
 # ----------------------------------------------------------------------------------------------
 output "rds_instance_endpoint" {
-  description = "RDS database endpoint (used to connect to PostgreSQL)."
+  description = "The endpoint of the RDS instance (RDS_HOST)"
   value       = aws_db_instance.transactions_db.endpoint
 }
-
-output "rds_database_name" {
-  description = "The database name inside the RDS instance."
-  value       = aws_db_instance.transactions_db.identifier
+output "rds_db_name" {
+  description = "The name of the initial database created in the RDS instance (RDS_DB)"
+  value       = aws_db_instance.transactions_db.db_name
 }
 
-# output "rds_username" {
-#   description = "The admin username for the RDS database."
-#   value       = aws_db_instance.transactions_db.username
-# }
+output "rds_user" {
+  description = "The master username for the RDS instance (RDS_USER)"
+  value       = aws_db_instance.transactions_db.username
+}
 
 # ----------------------------------------------------------------------------------------------
 # --- IAM Role & Instance Profile Outputs ---
