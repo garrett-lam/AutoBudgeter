@@ -1,45 +1,9 @@
 import pandas as pd 
 import utils as utils
 import logging
+from src.constants import COLUMN_MAPPING, CATEGORY_MAPPING
 
 logger = logging.getLogger(__name__)  
-
-COLUMN_MAPPING = {
-    "CHASE": {
-        "Transaction Date": "Transaction Date",
-        "Description": "Merchant",
-        "Category": "Category",
-        "Amount": "Amount",
-    },
-    "CAPITAL_ONE": {
-        "Date": "Transaction Date",
-        "Description": "Merchant",
-        "Category": "Category",
-        "Amount": "Amount",
-    },
-}
-
-CATEGORY_MAPPING = {
-    "CHASE": {
-        "Food & Drink": "Dining",
-        "Groceries": "Groceries",
-        "Entertainment": "Entertainment",
-        "Travel": "Travel",
-        "Shopping": "Merchandise",
-        "Health & Wellness": "Healthcare",
-        "Personal": "Healthcare"
-    },
-    "CAPITAL_ONE": {
-        "Dining": "Dining",
-        "Grocery": "Groceries",
-        "Entertainment": "Entertainment",
-        "Travel": "Travel",
-        "Other Travel": "Travel",
-        "Merchandise": "Merchandise",
-        "Healthcare": "Healthcare",
-        "Other": "Others",
-    },
-}
 
 
 # --- Chase -----------------------------------------------------------------------------
@@ -64,7 +28,7 @@ def process_chase_transactions(df: pd.DataFrame) -> pd.DataFrame:
         .pipe(utils.filter_columns, column_mapping=COLUMN_MAPPING["CHASE"])
     )
     logger.info("Chase transaction processing completed successfully.")
-    df['Provider'] = 'Chase'
+    df['Card Provider'] = 'Chase'
     return df  # Return the processed DataFrame
 
 # --- Capital One -------------------------------------------------------------------------
@@ -81,18 +45,11 @@ def process_capital_one_transactions(df: pd.DataFrame) -> pd.DataFrame:
         .pipe(utils.format_amount)
         .pipe(utils.filter_columns, column_mapping=COLUMN_MAPPING["CAPITAL_ONE"])
     )
-    df['Provider'] = 'Capital One'
+    df['Card Provider'] = 'Capital One'
     logger.info("Capital One transaction processing completed successfully.")
     return df  # Return the processed DataFrame
 
 # --- Bilt / Wells Fargo ---------------------------------------------------------------
-
-# def add_header_to_bilt_transactions(df: pd.DataFrame) -> pd.DataFrame:
-#     """Adds a header to Bilt transactions."""
-#     if not isinstance(df, pd.DataFrame):
-#         raise TypeError("Input must be a pd.DataFrame.")
-#     df.columns = ["Transaction Date", "Amount", "Category", "Merchant"]
-#     return df
 
 def filter_bilt_payments(df: pd.DataFrame) -> pd.DataFrame:
     """Filters out payment transactions from Bilt transactions."""
@@ -118,7 +75,7 @@ def process_bilt_transactions(df: pd.DataFrame) -> pd.DataFrame:
         .pipe(utils.format_amount)
         .pipe(order_bilt_columns)
     )
-    df['Provider'] = 'Bilt'
+    df['Card Provider'] = 'Bilt'
     logger.info("Bilt transaction processing completed successfully.")
     return df
 

@@ -105,13 +105,6 @@ resource "aws_iam_policy" "airflow_rds_policy" {
           "rds:DescribeDBInstances"
         ]
         Resource = aws_db_instance.transactions_db.arn
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
-        Resource = aws_secretsmanager_secret.airflow_secrets.arn
       }
     ]
   })
@@ -120,26 +113,6 @@ resource "aws_iam_policy" "airflow_rds_policy" {
 resource "aws_iam_role_policy_attachment" "airflow_rds_attachment" {
   role       = aws_iam_role.airflow_role.name
   policy_arn = aws_iam_policy.airflow_rds_policy.arn
-}
-
-
-# ----------------------------------------------------------------------------------------------
-# --- Secrets Manager ---
-# ----------------------------------------------------------------------------------------------
-resource "aws_secretsmanager_secret" "airflow_secrets" {
-  name = "airflow-credentials"
-
-#   lifecycle {
-#     prevent_destroy = true
-#   }
-}
-
-# Store the secrets in the Secret Manager
-resource "aws_secretsmanager_secret_version" "airflow_secrets_values" {
-  secret_id = aws_secretsmanager_secret.airflow_secrets.id
-  secret_string = jsonencode({
-    "RDS_PASSWORD"   = var.rds_password
-  })
 }
 
 # ----------------------------------------------------------------------------------------------
@@ -151,13 +124,12 @@ resource "aws_security_group" "ec2_sg" {
   name        = "ec2-security-group"
   description = "Allow outbound traffic from EC2"
 
-  # Allow SSH Access (Port 22) from your IP
+  # Allow SSH Access (Port 22)
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Public access for demo purposes (restrict in production)
-    # cidr_blocks = ["${chomp(data.http.myip.response_body)}/32"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # Allow Airflow Web UI Access (Port 8080)
@@ -165,16 +137,8 @@ resource "aws_security_group" "ec2_sg" {
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Public access for demo purposes (restrict in production)
+    cidr_blocks = ["0.0.0.0/0"] 
   }
-
-  #   # Allow EC2 to initiate PostgreSQL connections to RDS
-  #   egress {
-  #     from_port   = 5432
-  #     to_port     = 5432
-  #     protocol    = "tcp"
-  #     security_groups = [aws_security_group.rds_sg.id]  # Allow EC2 to talk to RDS
-  #   }
 
   # Allow all outbound traffic
   egress {
@@ -198,7 +162,6 @@ resource "aws_security_group" "rds_sg" {
     security_groups = [aws_security_group.ec2_sg.id] # Only allow EC2 access
   }
 
-  # Allow all outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -211,11 +174,11 @@ resource "aws_security_group" "rds_sg" {
 # --- RDS Database ---
 # ----------------------------------------------------------------------------------------------
 resource "aws_db_instance" "transactions_db" {
-  db_name                = "transactionDB"
+  db_name                = "transactionsDB"
   instance_class         = "db.t3.micro"
   allocated_storage      = 20 # 20 GB 
-  engine                 = "mysql"
-  engine_version         = "8.0"                 # Specify the desired MySQL version
+  engine                 = "postgres"
+  engine_version         = "16.3"                 
   username               = var.rds_username
   password               = var.rds_password
   publicly_accessible    = false
@@ -227,12 +190,29 @@ resource "aws_db_instance" "transactions_db" {
   # }
 }
 
+resource "null_resource" "database_setup" {
+  depends_on = [aws_db_instance.transactions_db]
+
+  provisioner "local-exec" {
+    command = <<-EOF
+      PGPASSWORD=${var.rds_password} psql \
+      -h ${aws_db_instance.transactions_db.address} \
+      -p 5432 \
+      -U ${var.rds_username} \
+      -d ${aws_db_instance.transactions_db.db_name} \
+      -f ${path.module}/db_setup.sql
+    EOF
+    interpreter = ["bash", "-c"]
+  }
+}
+
 # ----------------------------------------------------------------------------------------------
 # --- EC2 Instance with Airflow ---
 # ----------------------------------------------------------------------------------------------
 resource "aws_instance" "airflow_ec2" {
   ami                    = "ami-0884d2865dbe9de4b"                                # Ubuntu 22.04 LTS
   instance_type          = "t3.small"                                             # 2 vCPUs, 2 GiB RAM
+  key_name               = "airflow-ec2-key"
   iam_instance_profile   = aws_iam_instance_profile.airflow_instance_profile.name # Attach IAM instance profile
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]                         # Attach Security Group
 
