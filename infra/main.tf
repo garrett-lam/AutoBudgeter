@@ -137,7 +137,7 @@ resource "aws_security_group" "ec2_sg" {
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] 
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # Allow all outbound traffic
@@ -154,12 +154,13 @@ resource "aws_security_group" "rds_sg" {
   name        = "rds-security-group"
   description = "Allow EC2 to access RDS"
 
-  # Allow incoming PostgreSQL connections from EC2
+  # Allow incoming PostgreSQL connections (Port 5432)
   ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ec2_sg.id] # Only allow EC2 access
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    #security_groups = [aws_security_group.ec2_sg.id] # Only allow EC2 access
   }
 
   egress {
@@ -178,23 +179,23 @@ resource "aws_db_instance" "transactions_db" {
   instance_class         = "db.t3.micro"
   allocated_storage      = 20 # 20 GB 
   engine                 = "postgres"
-  engine_version         = "16.3"                 
+  engine_version         = "16.3"
   username               = var.rds_username
   password               = var.rds_password
-  publicly_accessible    = false
+  publicly_accessible    = true
   skip_final_snapshot    = true
   vpc_security_group_ids = [aws_security_group.rds_sg.id] # Attach Security Group
 
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "null_resource" "database_setup" {
   depends_on = [aws_db_instance.transactions_db]
 
   provisioner "local-exec" {
-    command = <<-EOF
+    command     = <<-EOF
       PGPASSWORD=${var.rds_password} psql \
       -h ${aws_db_instance.transactions_db.address} \
       -p 5432 \
@@ -210,13 +211,40 @@ resource "null_resource" "database_setup" {
 # --- EC2 Instance with Airflow ---
 # ----------------------------------------------------------------------------------------------
 resource "aws_instance" "airflow_ec2" {
-  ami                    = "ami-0884d2865dbe9de4b"                                # Ubuntu 22.04 LTS
-  instance_type          = "t3.small"                                             # 2 vCPUs, 2 GiB RAM
+  ami                    = "ami-0884d2865dbe9de4b" # Ubuntu 22.04 LTS
+  instance_type          = "t3.large"              # 2 vCPUs, 8 GiB RAM (4 GB minimum for Airflow)
   key_name               = "airflow-ec2-key"
   iam_instance_profile   = aws_iam_instance_profile.airflow_instance_profile.name # Attach IAM instance profile
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]                         # Attach Security Group
 
+  root_block_device {
+    volume_size = 30 # GB
+    volume_type = "gp3"
+  }
   tags = {
     Name = "airflow-ec2"
   }
+
+  # user_data = <<-EOF
+  #   #!/bin/bash
+  #   # Update package list and install required packages
+  #   apt-get update -y
+  #   apt-get install -y ca-certificates curl gnupg lsb-release git
+
+  #   # Install Docker
+  #   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  #   echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  #   apt-get update -y
+  #   apt-get install -y docker-ce docker-ce-cli containerd.io
+
+  #   # Add the 'ubuntu' user (or your instance’s default user) to the docker group so you can run docker without sudo
+  #   usermod -aG docker ubuntu
+
+  #   # Install Docker Compose (using the v2 plugin)
+  #   apt-get install -y docker-compose-plugin
+
+  #   # Switch to the ubuntu user, clone your GitHub repo, and run docker-compose up
+  #   su - ubuntu -c "git clone https://github.com/yourusername/yourrepo.git ~/yourrepo"
+  #   su - ubuntu -c "cd ~/yourrepo && docker compose up -d"
+  # EOF
 }

@@ -5,8 +5,8 @@ variable "aws_region" {
 }
 
 variable "rds_username" {
-    description = "Username for RDS database"
-    type        = string
+  description = "Username for RDS database"
+  type        = string
 }
 variable "rds_password" {
   description = "Password for RDS database"

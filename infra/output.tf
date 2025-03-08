@@ -28,19 +28,11 @@ output "airflow_web_ui" {
 # --- RDS Database Outputs ---
 # ----------------------------------------------------------------------------------------------
 output "rds_instance_endpoint" {
-  description = "The endpoint of the RDS instance (RDS_HOST)"
-  value       = aws_db_instance.transactions_db.endpoint
+  description = "The address of the RDS instance (RDS_HOST)"
+  value       = aws_db_instance.transactions_db.address
+}
+output "rds_instance_db_name" {
+  description = "The name of database in the RDS instance (RDS_DB)"
+  value       = aws_db_instance.transactions_db.db_name
 }
 
-# ----------------------------------------------------------------------------------------------
-# --- IAM Role & Instance Profile Outputs ---
-# ----------------------------------------------------------------------------------------------
-output "iam_role_name" {
-  description = "IAM Role assigned to EC2 for accessing AWS services."
-  value       = aws_iam_role.airflow_role.name
-}
-
-output "iam_instance_profile_name" {
-  description = "IAM Instance Profile assigned to EC2."
-  value       = aws_iam_instance_profile.airflow_instance_profile.name
-}

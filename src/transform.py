@@ -1,6 +1,6 @@
 import pandas as pd 
-import utils as utils
 import logging
+import src.utils as utils
 from src.constants import COLUMN_MAPPING, CATEGORY_MAPPING
 
 logger = logging.getLogger(__name__)  
