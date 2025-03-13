@@ -1,6 +1,11 @@
-# In terraform.tfvars, you can set the values for these variables:
+# NOTE: Create a separate file called terraform.tfvars to set these values, if privacy is not a concern, set them in main.tf
 variable "aws_region" {
   description = "Your AWS region"
+  type        = string
+}
+
+variable "rds_db_name" {
+  description = "Name of the RDS database."
   type        = string
 }
 

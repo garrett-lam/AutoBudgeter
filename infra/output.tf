@@ -7,21 +7,15 @@ output "s3_bucket_name" {
 }
 
 # ----------------------------------------------------------------------------------------------
-# --- EC2 Instance Outputs ---
+# --- IAM Outputs ---
 # ----------------------------------------------------------------------------------------------
-output "ec2_instance_id" {
-  description = "The ID of the EC2 instance running Airflow."
-  value       = aws_instance.airflow_ec2.id
+output "airflow_user_access_key" {
+  value = aws_iam_access_key.airflow_user_key.id
 }
 
-output "ec2_public_ip" {
-  description = "Public IP address of the EC2 instance (for SSH & Airflow UI)."
-  value       = aws_instance.airflow_ec2.public_ip
-}
-
-output "airflow_web_ui" {
-  description = "URL to access the Airflow Web UI."
-  value       = "http://${aws_instance.airflow_ec2.public_ip}:8080"
+output "airflow_user_secret_key" {
+  value     = aws_iam_access_key.airflow_user_key.secret
+  sensitive = true
 }
 
 # ----------------------------------------------------------------------------------------------
@@ -36,3 +30,12 @@ output "rds_instance_db_name" {
   value       = aws_db_instance.transactions_db.db_name
 }
 
+output "rds_instance_username" {
+  description = "The username for the RDS instance (RDS_USERNAME)"
+  value       = aws_db_instance.transactions_db.username
+}
+output "rds_instance_password" {
+  description = "The password for the RDS instance (RDS_PASSWORD)"
+  value       = aws_db_instance.transactions_db.password
+  sensitive   = true
+}
