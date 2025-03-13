@@ -5,22 +5,18 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.hooks.base import BaseHook
 import boto3
-from botocore.exceptions import ClientError
 import pandas as pd
 from datetime import datetime
 import logging
 import os
 import psycopg2
 import io
-import json
-from dotenv import load_dotenv
 from io import StringIO
 import src.utils as utils
 import src.transform as transform
 
-
-load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,54 +26,38 @@ logger = logging.getLogger(__name__)
 
 # S3 Configurations
 S3_BUCKET = 'personal-finance-transactions'
-RAW_FOLDER = "raw-transactions"  # Folder where transactions are uploaded
-PROCESSED_FOLDER = "processed-transactions"  # Folder where processed transactions are stored
 
 def get_s3_client():
     """
-    Retrieve a Boto3 S3 client using default credentials (via the EC2 IAM role).
+    Retrieve a Boto3 S3 client using airflow's connection.
     """
-    return boto3.client("s3",
-                        # aws_access_key_id=ACCESS_KEY,
-                        # aws_secret_access_key=SECRET_KEY,
-                        # aws_session_token=SESSION_TOKEN
+    aws_conn = BaseHook.get_connection("airflow-user")
+    return boto3.client(
+        "s3",
+        aws_access_key_id=aws_conn.login,
+        aws_secret_access_key=aws_conn.password
     )
 
 def extract_transactions_from_S3(**kwargs):
     """
-    Downloads CSV transaction files from the single folder present under RAW_FOLDER.
-    Pushes the raw data along with the folder name to XCom for further processing.
+    Downloads CSV transaction files from the S3 bucket.
+    Pushes the raw data to XCom for further processing.
     """
     ti = kwargs["ti"]
     s3 = get_s3_client()
     
-    # List subdirectories under RAW_FOLDER 
-    response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=RAW_FOLDER, Delimiter='/')
+    # List all objects in the bucket
+    response = s3.list_objects_v2(Bucket=S3_BUCKET)
     if response['ResponseMetadata']['HTTPStatusCode'] != 200:
-        logger.error(f"Failed to list objects in bucket s3://{S3_BUCKET}/{RAW_FOLDER}") # TODO: log response?
+        logger.error(f"Failed to list objects in bucket {S3_BUCKET}")
         return
-    if "CommonPrefixes" not in response or len(response["CommonPrefixes"]) == 0:
-        logger.info(f"No subdirectories found under s3://{S3_BUCKET}/{RAW_FOLDER}.")
-        return
-
-    # Extract this month's transactions directory
-    dir = response["CommonPrefixes"][0]["Prefix"]
-    # Remove the RAW_FOLDER prefix to get the folder name.
-    dir_name = dir.replace(RAW_FOLDER, "", 1)
-    logger.info(f"Processing folder: {dir}")
-
-    # List objects in this dir.
-    dir_response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=dir)
-    if dir_response['ResponseMetadata']['HTTPStatusCode'] != 200:
-        logger.error(f"Failed to list objects in dir {dir}")
-        return
-    if "Contents" not in dir_response:
-        logger.info(f"No files found in dir {dir}")
+    if "Contents" not in response:
+        logger.info(f"No files found in bucket {S3_BUCKET}.")
         return
 
     # Filter for CSV files.
-    files = [obj["Key"] for obj in dir_response["Contents"] if obj["Key"].lower().endswith(".csv")]
-    logger.info(f"Found {len(files)} CSV files in dir {dir}")
+    files = [obj["Key"] for obj in response["Contents"] if obj["Key"].lower().endswith(".csv")]
+    logger.info(f"Found {len(files)} CSV files in bucket {S3_BUCKET}")
 
     raw_data_jsons = []
     for s3_key in files:
@@ -93,10 +73,9 @@ def extract_transactions_from_S3(**kwargs):
 
     if raw_data_jsons:
         ti.xcom_push(key="raw_transactions_list", value=raw_data_jsons)
-        ti.xcom_push(key="processed_folder", value=dir_name) # for moving
-        logger.info("Pushed raw data and dir name to XCom!")
+        logger.info("Pushed raw data to XCom!")
     else:
-        logger.info("No CSV files processed from the dir.")
+        logger.info("No CSV files processed from the bucket.")
 
 def transform_transaction_files(**kwargs):
     """
@@ -134,23 +113,6 @@ def transform_transaction_files(**kwargs):
         ti.xcom_push(key="transformed_data_list", value=[df.to_json() for df in transformed_data_list])
         logger.info("Pushed transformed data to XCom!")
 
-def get_rds_credentials():
-    secret_name = "personal-finance-transactions/postgres"
-    region_name = "us-east-2"
-
-    # Create a Secrets Manager client
-    session = boto3.session.Session()
-    client = session.client(service_name='secretsmanager',region_name=region_name )
-
-    try:
-        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
-    except ClientError as e:
-        logger.error(f"Error retrieving secret {secret_name}: {e}")
-        raise e
-
-    secret = get_secret_value_response['SecretString']
-
-    return json.loads(secret)
 
 def load_transactions_to_RDS(**kwargs):
     """
@@ -167,12 +129,12 @@ def load_transactions_to_RDS(**kwargs):
     df_final = pd.concat(transformed_dfs, ignore_index=True)
     logger.info(f"Consolidated {len(transformed_dfs)} transaction files.")
 
-    # Retrieve RDS connection details from environment variables.
-    secret = get_rds_credentials()
-    rds_host = secret.get('RDS_HOST')
-    rds_db = secret.get('RDS_DB')
-    rds_user = secret.get('RDS_USER')
-    rds_password = secret.get('RDS_PASSWORD')
+    # Retrieve RDS connection details from the Airflow connection 'postgres_default'
+    pg_conn = BaseHook.get_connection("transactionsDB")
+    rds_host = pg_conn.host
+    rds_db = pg_conn.schema
+    rds_user = pg_conn.login
+    rds_password = pg_conn.password
     
     if not all([rds_host, rds_db, rds_user, rds_password]):
         logger.error("Not all RDS connection details are provided.")
@@ -192,7 +154,20 @@ def load_transactions_to_RDS(**kwargs):
         df_final.to_csv(csv_buffer, index=False, header=False)
         csv_buffer.seek(0)
         # Bulk load more efficient than inserting row by row
-        cursor.copy_expert("COPY transactions.credit_card_transactions FROM STDIN WITH CSV", csv_buffer)
+        cursor.copy_expert(
+            """
+            COPY transactions.credit_card_transactions (
+                transaction_date,
+                merchant,
+                category,
+                amount,
+                card_provider
+            )
+            FROM STDIN
+            WITH CSV HEADER
+            """,
+            csv_buffer
+        )
         conn.commit()
         logger.info("Loaded transactions into RDS successfully!")
     except Exception as e:
@@ -205,51 +180,16 @@ def load_transactions_to_RDS(**kwargs):
         if conn:
             conn.close()
 
-def move_processed_folder(**kwargs):
-    """
-    Retrieves the processed folder names from XCom (set by the extract task)
-    and moves each folder from RAW_FOLDER to PROCESSED_FOLDER in S3.
-    This function inlines the folder-moving logic rather than calling a separate helper.
-    """
-    ti = kwargs["ti"]
-    processed_folders = ti.xcom_pull(task_ids="extract_transactions_from_S3", key="processed_folders")
-    if not processed_folders:
-        logger.info("No folder names found in XCom; nothing to move.")
-        return
-
-    s3 = get_s3_client()
-    for folder in processed_folders:
-        source_prefix = f"{RAW_FOLDER}{folder}"
-        destination_prefix = f"{PROCESSED_FOLDER}{folder}"
-        logger.info(f"Moving objects from {source_prefix} to {destination_prefix}")
-
-        response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=source_prefix)
-        if "Contents" not in response:
-            logger.info(f"No objects found under {source_prefix}")
-            continue
-
-        for obj in response["Contents"]:
-            source_key = obj["Key"]
-            destination_key = source_key.replace(RAW_FOLDER, PROCESSED_FOLDER, 1)
-            copy_source = {"Bucket": S3_BUCKET, "Key": source_key}
-            s3.copy_object(Bucket=S3_BUCKET, CopySource=copy_source, Key=destination_key)
-            logger.info(f"Copied {source_key} to {destination_key}")
-            s3.delete_object(Bucket=S3_BUCKET, Key=source_key)
-            logger.info(f"Deleted {source_key} after copying.")
-        
-        logger.info(f"Moved folder {folder} to {PROCESSED_FOLDER}")
-
 default_args = {
     "owner": "airflow",
     "start_date": datetime(2025, 1, 1),
     "retries": 1,
 }
-
 with DAG(
     "s3_to_rds_transactions_dag",
     default_args=default_args,
-    description="DAG for processing arbitrary folders uploaded to S3/raw-transactions, loading transactions into RDS, then moving folders to processed-transactions.",
-    schedule_interval="@monthly",  # or another schedule as needed
+    description="DAG for processing CSV files uploaded to S3, loading transactions into RDS.",
+    schedule_interval="@monthly",
     catchup=False,
 ) as dag:
     
@@ -270,12 +210,5 @@ with DAG(
         python_callable=load_transactions_to_RDS,
         provide_context=True,
     )
-    
-    move_processed_folder_task = PythonOperator(
-        task_id="move_processed_folder",
-        python_callable=move_processed_folder,
-        provide_context=True,
-    )
 
-    # Task dependencies: Extract -> Transform -> Load -> Move folders.
-    extract_transactions_from_S3_task >> transform_transaction_files_task >> load_transactions_to_RDS_task >> move_processed_folder_task
+    extract_transactions_from_S3_task >> transform_transaction_files_task >> load_transactions_to_RDS_task

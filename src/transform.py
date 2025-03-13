@@ -5,14 +5,13 @@ from src.constants import COLUMN_MAPPING, CATEGORY_MAPPING
 
 logger = logging.getLogger(__name__)  
 
-
 # --- Chase -----------------------------------------------------------------------------
 
 # Chase includes payments to card in its transactions, so we need to filter them out
 def filter_chase_payments(df: pd.DataFrame):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pd.DataFrame.")
-    df = df[df["Type"] != "Payment"]
+    df = df[df["amount"].astype(float) < 0]
     return df
 
 def process_chase_transactions(df: pd.DataFrame) -> pd.DataFrame:
@@ -28,7 +27,7 @@ def process_chase_transactions(df: pd.DataFrame) -> pd.DataFrame:
         .pipe(utils.filter_columns, column_mapping=COLUMN_MAPPING["CHASE"])
     )
     logger.info("Chase transaction processing completed successfully.")
-    df['Card Provider'] = 'Chase'
+    df['card_provider'] = 'Chase'
     return df  # Return the processed DataFrame
 
 # --- Capital One -------------------------------------------------------------------------
@@ -45,7 +44,7 @@ def process_capital_one_transactions(df: pd.DataFrame) -> pd.DataFrame:
         .pipe(utils.format_amount)
         .pipe(utils.filter_columns, column_mapping=COLUMN_MAPPING["CAPITAL_ONE"])
     )
-    df['Card Provider'] = 'Capital One'
+    df['card_provider'] = 'Capital One'
     logger.info("Capital One transaction processing completed successfully.")
     return df  # Return the processed DataFrame
 
@@ -55,16 +54,15 @@ def filter_bilt_payments(df: pd.DataFrame) -> pd.DataFrame:
     """Filters out payment transactions from Bilt transactions."""
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pd.DataFrame.")
-    df = df[df["Category"] != "Payment"]
+    df = df[df["category"] != "Payment"]
     return df
 
 def order_bilt_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Reorders columns for Bilt transactions."""
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pd.DataFrame.")
-    return df[["Transaction Date", "Merchant", "Category", "Amount"]]
+    return df[["transaction_date", "merchant", "category", "amount"]]
 
-# BILT doesn't have categories or a header
 def process_bilt_transactions(df: pd.DataFrame) -> pd.DataFrame:
 
     logger.info("Starting Bilt transaction processing...")
@@ -75,21 +73,6 @@ def process_bilt_transactions(df: pd.DataFrame) -> pd.DataFrame:
         .pipe(utils.format_amount)
         .pipe(order_bilt_columns)
     )
-    df['Card Provider'] = 'Bilt'
+    df['card_provider'] = 'Bilt'
     logger.info("Bilt transaction processing completed successfully.")
     return df
-
-
-# if __name__ == "__main__":
-#     # For testing the functions in this script
-#     df = pd.read_csv("/Users/garrettlam/Downloads/feb_transactions/CreditCard1.csv", keep_default_na=False, dtype=str)
-#     df = process_bilt_transactions(df)
-#     print(df)
-
-#     df = pd.read_csv("/Users/garrettlam/Downloads/feb_transactions/Chase0823_Activity20250201_20250228_20250304.CSV", keep_default_na=False, dtype=str)
-#     df = process_chase_transactions(df)
-#     print(df)
-
-#     df = pd.read_csv("/Users/garrettlam/Downloads/feb_transactions/Capital-One-Spending-Insights-Transactions_fake202502.csv", keep_default_na=False, dtype=str)
-#     df = process_capital_one_transactions(df)
-#     print(df)

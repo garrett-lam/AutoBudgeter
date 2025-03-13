@@ -38,17 +38,17 @@ def normalize_categories(df: pd.DataFrame, category_mapping: Dict[str, str]):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pd.DataFrame.")
     
-    df['Category'] = df['Category'].map(category_mapping).fillna(df['Category'])
+    df['category'] = df['category'].map(category_mapping).fillna(df['category'])
     return df
 
 def filter_transaction_date(df: pd.DataFrame):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pd.DataFrame.")
     df = df.copy()
-    df["Transaction Date"] = pd.to_datetime(df["Transaction Date"], format="%m/%d/%Y")
+    df["transaction_date"] = pd.to_datetime(df["transaction_date"], format="%m/%d/%Y")
 
     start_date, end_date = get_previous_month_date_range()
-    return df[(df["Transaction Date"] >= start_date) & (df["Transaction Date"] <= end_date)].astype(str)
+    return df[(df["transaction_date"] >= start_date) & (df["transaction_date"] <= end_date)].astype(str)
 
 def clean_merchant(text: str):
     """Cleans merchant names by removing common POS prefixes, numbers, and extra spaces."""
@@ -68,8 +68,8 @@ def clean_merchant(text: str):
 def format_merchant(df: pd.DataFrame):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pd.DataFrame.")
-    df['Merchant'] = (
-        df['Merchant'].astype(str)
+    df['merchant'] = (
+        df['merchant'].astype(str)
         .apply(clean_merchant)
         .str.title()
     )
@@ -78,7 +78,7 @@ def format_merchant(df: pd.DataFrame):
 def format_amount(df: pd.DataFrame):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pd.DataFrame.")
-    df["Amount"] = pd.to_numeric(df["Amount"], errors="raise").abs().astype(str)
+    df["amount"] = pd.to_numeric(df["amount"], errors="raise").abs().astype(float).round(2)
     return df
 
 def filter_columns(df: pd.DataFrame, column_mapping: Dict[str, str]):

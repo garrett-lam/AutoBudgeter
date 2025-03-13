@@ -1,16 +1,16 @@
 
 COLUMN_MAPPING = {
     "CHASE": {
-        "Transaction Date": "Transaction Date",
-        "Description": "Merchant",
-        "Category": "Category",
-        "Amount": "Amount",
+        "Transaction Date": "transaction_date",
+        "Description": "merchant",
+        "Category": "category",
+        "Amount": "amount",
     },
     "CAPITAL_ONE": {
-        "Date": "Transaction Date",
-        "Description": "Merchant",
-        "Category": "Category",
-        "Amount": "Amount",
+        "Date": "transaction_date",
+        "Description": "merchant",
+        "Category": "category",
+        "Amount": "amount",
     },
 }
 
