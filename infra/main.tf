@@ -65,6 +65,10 @@ resource "aws_iam_user" "airflow_user" {
 # Create an access key for the IAM user
 resource "aws_iam_access_key" "airflow_user_key" {
   user = aws_iam_user.airflow_user.name
+  # Comment out lifecycle block if you would like to allow deletion of the IAM user
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Create an IAM policy that allows access to S3 and RDS (RDS write access is on application-level, cannot be configured via IAM)
