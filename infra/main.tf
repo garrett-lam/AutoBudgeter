@@ -14,7 +14,7 @@ resource "aws_db_instance" "transactions_db" {
   instance_class         = "db.t3.micro"
   allocated_storage      = 20 # 20 GB
   engine                 = "postgres"
-  engine_version         = "16.3"
+  engine_version         = "16.4"
   username               = var.rds_username
   password               = var.rds_password
   publicly_accessible    = true
@@ -59,7 +59,6 @@ resource "aws_iam_user" "airflow_user" {
   lifecycle {
     prevent_destroy = true
   }
-
 }
 
 # Create an access key for the IAM user
@@ -123,7 +122,7 @@ resource "aws_iam_user_policy_attachment" "airflow_policy_attach" {
 resource "aws_security_group" "rds_sg" {
   name = "rds-security-group"
 
-  # Allow incoming PostgreSQL connections (Port 5432)
+  # Allow incoming PostgreSQL connections on port 5432
   ingress {
     from_port   = 5432
     to_port     = 5432
