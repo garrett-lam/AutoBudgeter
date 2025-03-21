@@ -6,7 +6,7 @@ Keeping track of spending across multiple credit cards can be tedious, requiring
 
 To simplify and automate my personal finance tracking, I wanted a system to synchronize all my credit card transactions into one centralized dashboard. **CreditSync** enables me to visualize my spending habits, monitor savings, and streamline monthly financial planning. 
 
-Beyond personal finance, this project was a learning opportunity — a way to apply my data engineering and cloud computing skills to automate my finances. 
+Beyond tracking my spending, this project was a valuable learning opportunity — allowing me to enhance my data engineering and cloud computing skills by automating my finances.
 
 ## 🏗️ Architecture 
 1. **AWS S3** - Cloud storage for raw transactions data
